@@ -10,6 +10,7 @@ import {
   Pencil,
   RefreshCw,
   Save,
+  ScrollText,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -23,8 +24,13 @@ export const FileManagerView: React.FC<{ server: ServerPublicConfig }> = ({
   server,
 }) => {
   const { t } = useI18n();
-  const { filesDirByServer, confirmDanger, pushToast, connectServer } =
-    useApp();
+  const {
+    filesDirByServer,
+    confirmDanger,
+    pushToast,
+    connectServer,
+    jumpToLogSource,
+  } = useApp();
 
   const [currentDir, setCurrentDir] = useState(
     filesDirByServer[server.id] || server.defaultCwd || '/home/deploy/app',
@@ -366,13 +372,28 @@ export const FileManagerView: React.FC<{ server: ServerPublicConfig }> = ({
                     )}
                     <div className="hidden items-center gap-0.5 group-hover:flex">
                       {!entry.isDirectory && (
-                        <a
-                          href={api.getDownloadUrl(server.id, entry.path)}
-                          title={t.files.download}
-                          className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800"
-                        >
-                          <Download className="h-3 w-3" />
-                        </a>
+                        <>
+                          <button
+                            onClick={() =>
+                              jumpToLogSource(server.id, {
+                                sourceType: 'file',
+                                target: entry.path,
+                                label: entry.name,
+                              })
+                            }
+                            title="Tail in Grafana Logs"
+                            className="rounded p-1 text-emerald-500 hover:bg-emerald-500/15"
+                          >
+                            <ScrollText className="h-3 w-3" />
+                          </button>
+                          <a
+                            href={api.getDownloadUrl(server.id, entry.path)}
+                            title={t.files.download}
+                            className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800"
+                          >
+                            <Download className="h-3 w-3" />
+                          </a>
+                        </>
                       )}
                       <button
                         onClick={() => void handleRename(entry)}

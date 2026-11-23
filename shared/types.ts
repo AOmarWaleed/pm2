@@ -137,6 +137,7 @@ export interface Pm2Process {
   nodeVersion: string;
   outLogPath: string;
   errLogPath: string;
+  cronRestart?: string;
   env: Record<string, string>;
 }
 
@@ -341,6 +342,78 @@ export interface VaultStatusResponse {
   unlockedAt?: number;
 }
 
+export type CronJobSource =
+  | 'user-crontab'
+  | 'system-cron'
+  | 'systemd-timer'
+  | 'pm2-cron';
+
+export type CronRunStatus = 'running' | 'success' | 'failed' | 'unknown';
+
+export interface CronRunRecord {
+  runId: string;
+  jobId: string;
+  jobName: string;
+  status: CronRunStatus;
+  exitCode: number | null;
+  startedAt: number;
+  finishedAt: number | null;
+  durationMs: number | null;
+  logFile?: string;
+  trigger: 'schedule' | 'manual' | 'syslog';
+  outputPreview?: string;
+}
+
+export interface CronActiveRun {
+  runId: string;
+  pid: number;
+  startedAt: number;
+  logFile?: string;
+}
+
+export interface CronJobItem {
+  id: string;
+  name: string;
+  source: CronJobSource;
+  sourceFile: string;
+  schedule: string;
+  scheduleHuman: string;
+  nextRuns: number[];
+  command: string;
+  rawLine: string;
+  user?: string;
+  enabled: boolean;
+  tracked: boolean;
+  editable: boolean;
+  activeRun?: CronActiveRun;
+  lastRun?: CronRunRecord;
+  recentRuns: CronRunRecord[];
+}
+
+export interface CronJobInput {
+  name: string;
+  schedule: string;
+  command: string;
+  enabled?: boolean;
+  tracked?: boolean;
+}
+
+export type LogSourceType = 'pm2' | 'file' | 'cron';
+
+export interface LogBookmark {
+  id: string;
+  label: string;
+  sourceType: LogSourceType;
+  target: string;
+  createdAt: number;
+}
+
+export interface HistoricalLogLine {
+  source: 'stdout' | 'stderr' | 'system';
+  line: string;
+  timestamp: number;
+}
+
 export interface VaultData {
   servers: ServerConfig[];
   scripts: ScriptItem[];
@@ -348,6 +421,7 @@ export interface VaultData {
   alertEvents: AlertEvent[];
   webhooks: WebhookConfig[];
   aiConfig: AiConfig;
+  logBookmarks: Record<string, LogBookmark[]>;
   settings: {
     autoLockMinutes: number;
   };
@@ -361,6 +435,8 @@ export type WsClientMessage =
       streamId: string;
       serverId: string;
       processName?: string;
+      sourceType?: LogSourceType;
+      target?: string;
       lines?: number;
     }
   | { type: 'logs:stop'; streamId: string }
@@ -384,7 +460,9 @@ export type WsClientMessage =
       command: string;
       cwd?: string;
     }
-  | { type: 'script:cancel'; runId: string };
+  | { type: 'script:cancel'; runId: string }
+  | { type: 'cron:run'; runId: string; serverId: string; jobId: string }
+  | { type: 'cron:cancel'; runId: string };
 
 export type WsServerMessage =
   | { type: 'telemetry:update'; snapshot: ServerTelemetrySnapshot }
@@ -411,5 +489,12 @@ export type WsServerMessage =
       exitCode: number | null;
       status: 'success' | 'failed' | 'cancelled';
     }
+  | {
+      type: 'cron:output';
+      runId: string;
+      stream: 'stdout' | 'stderr' | 'system';
+      chunk: string;
+    }
+  | { type: 'cron:done'; runId: string; record: CronRunRecord }
   | { type: 'alert:fired'; event: AlertEvent }
   | { type: 'vault:locked' };

@@ -3,7 +3,9 @@ import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { validateOrigin } from './middleware/auth';
+import { cronRouter } from './routes/cronRoutes';
 import { filesRouter } from './routes/filesRoutes';
+import { logsRouter } from './routes/logsRoutes';
 import {
   aiRouter,
   alertsRouter,
@@ -30,6 +32,8 @@ export function createWatchPm2Server() {
   app.use('/api/servers', serverRouter);
   app.use('/api/servers/:id/pm2', pm2Router);
   app.use('/api/servers/:id/files', filesRouter);
+  app.use('/api/servers/:id/crons', cronRouter);
+  app.use('/api/servers/:id/logs', logsRouter);
   app.use('/api/scripts', scriptsRouter);
   app.use('/api/alerts', alertsRouter);
   app.use('/api/ai', aiRouter);

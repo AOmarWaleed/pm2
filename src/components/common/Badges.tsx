@@ -108,7 +108,7 @@ export const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 end-4 z-50 flex w-80 flex-col gap-2">
+    <div className="pointer-events-none fixed bottom-3 end-3 z-50 flex w-72 flex-col gap-1.5">
       {toasts.map((toast) => {
         const icon =
           toast.variant === 'success' ? (

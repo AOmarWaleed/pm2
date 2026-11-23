@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Activity,
   Bot,
+  Clock,
   FileCode2,
   Flame,
   FolderOpen,
@@ -20,9 +21,10 @@ import { ServerSection, useApp } from '@/store/appStore';
 import { cn, formatDurationSeconds } from '@/utils/format';
 import { AiAssistantView } from '../ai/AiAssistantView';
 import { ConnectionDot, EnvBadge } from '../common/Badges';
+import { CronJobsView } from '../cron/CronJobsView';
 import { EcosystemView } from '../ecosystem/EcosystemView';
 import { FileManagerView } from '../files/FileManagerView';
-import { LiveLogsView } from '../logs/LiveLogsView';
+import { LogsExplorerView } from '../logs/LogsExplorerView';
 import { ServerOverviewView } from '../overview/ServerOverviewView';
 import { Pm2ProcessTable } from '../pm2/Pm2ProcessTable';
 import { ScriptsLibraryView } from '../scripts/ScriptsLibraryView';
@@ -67,6 +69,11 @@ export const ServerWorkspace: React.FC<{ server: ServerPublicConfig }> = ({
       id: 'logs',
       label: t.nav.logs,
       icon: <ScrollText className="h-4 w-4" />,
+    },
+    {
+      id: 'crons',
+      label: t.nav.crons,
+      icon: <Clock className="h-4 w-4" />,
     },
     {
       id: 'ecosystem',
@@ -120,7 +127,10 @@ export const ServerWorkspace: React.FC<{ server: ServerPublicConfig }> = ({
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <ConnectionDot status={server.connectionStatus} />
-              <span className="truncate text-xs font-bold text-zinc-900 dark:text-zinc-100">
+              <span
+                dir="ltr"
+                className="truncate text-xs font-bold text-zinc-900 dark:text-zinc-100"
+              >
                 {server.name}
               </span>
             </div>
@@ -223,7 +233,8 @@ export const ServerWorkspace: React.FC<{ server: ServerPublicConfig }> = ({
         {activeSection === 'processes' && (
           <Pm2ProcessTable server={server} />
         )}
-        {activeSection === 'logs' && <LiveLogsView server={server} />}
+        {activeSection === 'logs' && <LogsExplorerView server={server} />}
+        {activeSection === 'crons' && <CronJobsView server={server} />}
         {activeSection === 'ecosystem' && <EcosystemView server={server} />}
         {activeSection === 'terminal' && <SshTerminalView server={server} />}
         {activeSection === 'files' && <FileManagerView server={server} />}

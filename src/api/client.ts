@@ -5,8 +5,13 @@ import {
   AiPublicConfig,
   AlertEvent,
   AlertRule,
+  CronJobInput,
+  CronJobItem,
   FileEntry,
   FileReadResult,
+  HistoricalLogLine,
+  LogBookmark,
+  LogSourceType,
   Pm2Action,
   Pm2Process,
   ScriptItem,
@@ -390,4 +395,89 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ serverId, processName, logs, language }),
     }),
+
+  // Cron Jobs
+  listCrons: (serverId: string) =>
+    request<{ jobs: CronJobItem[] }>(`/api/servers/${serverId}/crons`),
+
+  createCron: (serverId: string, input: CronJobInput) =>
+    request<{ jobs: CronJobItem[] }>(`/api/servers/${serverId}/crons`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  updateCron: (serverId: string, jobId: string, input: CronJobInput) =>
+    request<{ jobs: CronJobItem[] }>(
+      `/api/servers/${serverId}/crons/${encodeURIComponent(jobId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      },
+    ),
+
+  toggleCronEnabled: (serverId: string, jobId: string, enabled: boolean) =>
+    request<{ jobs: CronJobItem[] }>(
+      `/api/servers/${serverId}/crons/${encodeURIComponent(jobId)}/toggle`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+      },
+    ),
+
+  toggleCronTracking: (serverId: string, jobId: string, tracked: boolean) =>
+    request<{ jobs: CronJobItem[] }>(
+      `/api/servers/${serverId}/crons/${encodeURIComponent(jobId)}/track`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ tracked }),
+      },
+    ),
+
+  deleteCron: (serverId: string, jobId: string) =>
+    request<{ jobs: CronJobItem[] }>(
+      `/api/servers/${serverId}/crons/${encodeURIComponent(jobId)}`,
+      { method: 'DELETE' },
+    ),
+
+  readCronRunLog: (serverId: string, logPath: string) =>
+    request<{ content: string; path: string }>(
+      `/api/servers/${serverId}/crons/run-log?path=${encodeURIComponent(logPath)}`,
+    ),
+
+  // Logs Explorer (History + Bookmarks)
+  fetchLogHistory: (
+    serverId: string,
+    params: {
+      sourceType: LogSourceType;
+      target: string;
+      rangeMinutes: number;
+      maxLines?: number;
+    },
+  ) =>
+    request<{ lines: HistoricalLogLine[] }>(
+      `/api/servers/${serverId}/logs/history?sourceType=${encodeURIComponent(params.sourceType)}&target=${encodeURIComponent(params.target)}&rangeMinutes=${params.rangeMinutes}&maxLines=${params.maxLines || 800}`,
+    ),
+
+  listLogBookmarks: (serverId: string) =>
+    request<{ bookmarks: LogBookmark[] }>(
+      `/api/servers/${serverId}/logs/bookmarks`,
+    ),
+
+  saveLogBookmark: (
+    serverId: string,
+    input: { label: string; sourceType: LogSourceType; target: string },
+  ) =>
+    request<{ bookmark: LogBookmark }>(
+      `/api/servers/${serverId}/logs/bookmarks`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    ),
+
+  deleteLogBookmark: (serverId: string, bookmarkId: string) =>
+    request<{ ok: true }>(
+      `/api/servers/${serverId}/logs/bookmarks/${encodeURIComponent(bookmarkId)}`,
+      { method: 'DELETE' },
+    ),
 };

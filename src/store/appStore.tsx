@@ -11,6 +11,7 @@ import {
   AlertEvent,
   AlertRule,
   EnvironmentTag,
+  LogSourceType,
   ScriptItem,
   ScriptRunRecord,
   ServerPublicConfig,
@@ -25,11 +26,19 @@ export type ServerSection =
   | 'overview'
   | 'processes'
   | 'logs'
+  | 'crons'
   | 'ecosystem'
   | 'terminal'
   | 'files'
   | 'scripts'
   | 'ai';
+
+export interface PendingLogTabRequest {
+  sourceType: LogSourceType;
+  target: string;
+  label: string;
+  nonce: number;
+}
 
 export interface ToastItem {
   id: string;
@@ -59,7 +68,7 @@ interface AppContextValue {
   sectionByServer: Record<string, ServerSection>;
   telemetry: Record<string, ServerTelemetrySnapshot>;
 
-  selectedLogProcessByServer: Record<string, string | undefined>;
+  pendingLogTabByServer: Record<string, PendingLogTabRequest | undefined>;
   terminalCwdByServer: Record<string, string | undefined>;
   filesDirByServer: Record<string, string | undefined>;
   aiLogSeedByServer: Record<
@@ -110,6 +119,10 @@ interface AppContextValue {
   launchDemoServer: () => Promise<void>;
 
   jumpToLogs: (serverId: string, processName?: string) => void;
+  jumpToLogSource: (
+    serverId: string,
+    req: { sourceType: LogSourceType; target: string; label?: string },
+  ) => void;
   jumpToTerminal: (serverId: string, cwd?: string) => void;
   jumpToFiles: (serverId: string, dirPath?: string) => void;
   jumpToAiDiagnoseLogs: (
@@ -150,8 +163,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     Record<string, ServerTelemetrySnapshot>
   >({});
 
-  const [selectedLogProcessByServer, setSelectedLogProcessByServer] = useState<
-    Record<string, string | undefined>
+  const [pendingLogTabByServer, setPendingLogTabByServer] = useState<
+    Record<string, PendingLogTabRequest | undefined>
   >({});
   const [terminalCwdByServer, setTerminalCwdByServer] = useState<
     Record<string, string | undefined>
@@ -212,10 +225,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const pushToast = useCallback((t: Omit<ToastItem, 'id'>) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    setToasts((prev) => [...prev.slice(-4), { ...t, id }]);
+    setToasts((prev) => [...prev.slice(-2), { ...t, id }]);
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((item) => item.id !== id));
-    }, 5500);
+    }, 4000);
   }, []);
 
   const confirmDanger = useCallback((req: DangerConfirmRequest) => {
@@ -449,15 +462,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setTelemetry((prev) => ({ ...prev, [res.server.id]: snapRes.snapshot }));
   }, [openServerTab, refreshServers]);
 
-  const jumpToLogs = useCallback(
-    (serverId: string, processName?: string) => {
-      setSelectedLogProcessByServer((prev) => ({
+  const jumpToLogSource = useCallback(
+    (
+      serverId: string,
+      req: { sourceType: LogSourceType; target: string; label?: string },
+    ) => {
+      setPendingLogTabByServer((prev) => ({
         ...prev,
-        [serverId]: processName,
+        [serverId]: {
+          sourceType: req.sourceType,
+          target: req.target,
+          label: req.label || req.target || 'All Processes',
+          nonce: Date.now(),
+        },
       }));
       openServerTab(serverId, 'logs');
     },
     [openServerTab],
+  );
+
+  const jumpToLogs = useCallback(
+    (serverId: string, processName?: string) => {
+      jumpToLogSource(serverId, {
+        sourceType: 'pm2',
+        target: processName || '',
+        label: processName || 'All Processes',
+      });
+    },
+    [jumpToLogSource],
   );
 
   const jumpToTerminal = useCallback(
@@ -506,7 +538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         activeTabId,
         sectionByServer,
         telemetry,
-        selectedLogProcessByServer,
+        pendingLogTabByServer,
         terminalCwdByServer,
         filesDirByServer,
         aiLogSeedByServer,
@@ -543,6 +575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         disconnectServer,
         launchDemoServer,
         jumpToLogs,
+        jumpToLogSource,
         jumpToTerminal,
         jumpToFiles,
         jumpToAiDiagnoseLogs,

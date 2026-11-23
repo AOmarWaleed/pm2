@@ -1,7 +1,17 @@
 import {
+  describeCron,
+  getNextCronRuns,
+  validateCronExpression,
+} from '@shared/cronUtils';
+import {
+  CronJobInput,
+  CronJobItem,
+  CronRunRecord,
   FileEntry,
   FileReadResult,
+  HistoricalLogLine,
   HostMetrics,
+  LogSourceType,
   Pm2Action,
   Pm2Process,
   ServerConnectionStatus,
@@ -20,6 +30,8 @@ class DemoBackend {
   private status: ServerConnectionStatus = 'connected';
   private processes: Pm2Process[] = [];
   private fsNodes = new Map<string, MockFileNode>();
+  private cronJobs: CronJobItem[] = [];
+  private cronLogs = new Map<string, string>();
   private netRxBase = 240_000;
   private netTxBase = 160_000;
   private hostStartedAt = Date.now() - 1000 * 60 * 60 * 24 * 14;
@@ -189,6 +201,7 @@ class DemoBackend {
       '/var',
       '/var/log',
       '/var/log/pm2',
+      '/var/log/nginx',
     ];
     for (const d of dirs) {
       this.fsNodes.set(d, {
@@ -297,6 +310,279 @@ app.listen(process.env.PORT || 8080);
 }
 `,
     });
+
+    this.fsNodes.set('/var/log/nginx/error.log', {
+      isDirectory: false,
+      modifiedAt: now,
+      permissions: '-rw-r-----',
+      content: `${new Date(now - 900000).toISOString()} [error] 1842#1842: *9182 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 185.220.101.4, server: api.example.internal, request: "POST /api/v2/invoices/sync HTTP/2.0"\n${new Date(now - 300000).toISOString()} [warn] 1842#1842: *9204 an upstream response is buffered to a temporary file /var/cache/nginx/proxy_temp/4/00/0000000004\n`,
+    });
+
+    this.seedDemoCrons(now);
+  }
+
+  private seedDemoCrons(now: number): void {
+    const mkRun = (
+      jobId: string,
+      jobName: string,
+      idx: number,
+      agoMin: number,
+      durMs: number,
+      exitCode: number,
+      trigger: 'schedule' | 'manual' | 'syslog',
+      logText: string,
+    ): CronRunRecord => {
+      const startedAt = now - agoMin * 60_000;
+      const finishedAt = trigger === 'syslog' ? null : startedAt + durMs;
+      const runId = `run-${jobId}-${idx}`;
+      const logFile = `/home/deploy/.watchpm2/cron-logs/${jobId}/${runId}.log`;
+      this.cronLogs.set(logFile, logText);
+      return {
+        runId,
+        jobId,
+        jobName,
+        status:
+          trigger === 'syslog'
+            ? 'unknown'
+            : exitCode === 0
+              ? 'success'
+              : 'failed',
+        exitCode: trigger === 'syslog' ? null : exitCode,
+        startedAt,
+        finishedAt,
+        durationMs: trigger === 'syslog' ? null : durMs,
+        logFile: trigger === 'syslog' ? undefined : logFile,
+        trigger,
+        outputPreview: logText.slice(-300),
+      };
+    };
+
+    const backupRuns: CronRunRecord[] = [
+      mkRun(
+        'cron-backup',
+        'db-nightly-backup',
+        1,
+        120,
+        41200,
+        0,
+        'schedule',
+        '[02:00:01] Starting pg_dump for prod_db...\n[02:00:34] Compressed dump: /backups/prod_db_2026-11-23.sql.zst (412 MB)\n[02:00:42] Uploaded cleanly to s3://company-backups/db/\n[02:00:42] Done (exit 0)',
+      ),
+      mkRun(
+        'cron-backup',
+        'db-nightly-backup',
+        2,
+        1560,
+        39800,
+        0,
+        'schedule',
+        '[02:00:01] Starting pg_dump for prod_db...\n[02:00:40] Uploaded cleanly to s3://company-backups/db/\n[02:00:40] Done (exit 0)',
+      ),
+      mkRun(
+        'cron-backup',
+        'db-nightly-backup',
+        3,
+        3000,
+        4320,
+        2,
+        'schedule',
+        '[02:00:01] Starting pg_dump for prod_db...\npg_dump: error: connection to server at "10.0.2.20", port 5432 failed: FATAL: too many clients already\n[02:00:05] Backup aborted with exit code 2',
+      ),
+      mkRun(
+        'cron-backup',
+        'db-nightly-backup',
+        4,
+        4440,
+        40100,
+        0,
+        'schedule',
+        '[02:00:01] Uploaded cleanly to s3://company-backups/db/',
+      ),
+    ];
+
+    const warmupRuns: CronRunRecord[] = [
+      mkRun(
+        'cron-warmup',
+        'cache-warmup',
+        1,
+        4,
+        1420,
+        0,
+        'schedule',
+        '{"ts":"' +
+          new Date(now - 240_000).toISOString() +
+          '","level":"info","keysWarmed":1480,"durationMs":1420,"msg":"Redis catalog cache refreshed"}',
+      ),
+      mkRun(
+        'cron-warmup',
+        'cache-warmup',
+        2,
+        9,
+        1380,
+        0,
+        'schedule',
+        'Warmed 1480 keys in 1380ms',
+      ),
+      mkRun(
+        'cron-warmup',
+        'cache-warmup',
+        3,
+        14,
+        1510,
+        0,
+        'schedule',
+        'Warmed 1480 keys in 1510ms',
+      ),
+    ];
+
+    const reconcileRuns: CronRunRecord[] = [
+      mkRun(
+        'cron-reconcile',
+        'invoice-reconcile',
+        1,
+        12,
+        6240,
+        1,
+        'schedule',
+        `[ERROR] Starting Stripe invoice reconciliation batch #412...\nFetching pending invoices from PostgreSQL...\nError: StripeAPIError: Rate limit exceeded (429 Too Many Requests) for key rk_live_***\n    at StripeClient.request (/home/deploy/workers/dist/stripe.js:114:19)\n    at async runReconcile (/home/deploy/workers/dist/reconcile.js:48:11)\nProcess exited with code 1 after 6240ms`,
+      ),
+      mkRun(
+        'cron-reconcile',
+        'invoice-reconcile',
+        2,
+        27,
+        4890,
+        0,
+        'schedule',
+        'Reconciled 42 invoices, 0 discrepancies.',
+      ),
+      mkRun(
+        'cron-reconcile',
+        'invoice-reconcile',
+        3,
+        42,
+        5120,
+        0,
+        'schedule',
+        'Reconciled 38 invoices, 0 discrepancies.',
+      ),
+    ];
+
+    const tmpRuns: CronRunRecord[] = [
+      mkRun(
+        'cron-tmp',
+        'tmp-cleanup',
+        1,
+        900,
+        0,
+        0,
+        'syslog',
+        `${new Date(now - 900 * 60_000).toISOString()} prod-eu-node-01 CRON[8912]: (deploy) CMD (find /tmp/uploads -mtime +3 -delete)`,
+      ),
+    ];
+
+    this.cronJobs = [
+      {
+        id: 'cron-reconcile',
+        name: 'invoice-reconcile',
+        source: 'user-crontab',
+        sourceFile: 'deploy crontab',
+        schedule: '*/15 * * * *',
+        scheduleHuman: describeCron('*/15 * * * *'),
+        nextRuns: getNextCronRuns('*/15 * * * *', 3),
+        command: 'node /home/deploy/workers/dist/reconcile.js --batch=200',
+        rawLine:
+          '*/15 * * * * "$HOME/.watchpm2/cron-run.sh" cron-reconcile ...',
+        user: 'deploy',
+        enabled: true,
+        tracked: true,
+        editable: true,
+        lastRun: reconcileRuns[0],
+        recentRuns: reconcileRuns,
+      },
+      {
+        id: 'cron-warmup',
+        name: 'cache-warmup',
+        source: 'user-crontab',
+        sourceFile: 'deploy crontab',
+        schedule: '*/5 * * * *',
+        scheduleHuman: describeCron('*/5 * * * *'),
+        nextRuns: getNextCronRuns('*/5 * * * *', 3),
+        command: '/usr/local/bin/node /home/deploy/app/scripts/warm-cache.js',
+        rawLine: '*/5 * * * * "$HOME/.watchpm2/cron-run.sh" cron-warmup ...',
+        user: 'deploy',
+        enabled: true,
+        tracked: true,
+        editable: true,
+        lastRun: warmupRuns[0],
+        recentRuns: warmupRuns,
+      },
+      {
+        id: 'cron-backup',
+        name: 'db-nightly-backup',
+        source: 'user-crontab',
+        sourceFile: 'deploy crontab',
+        schedule: '0 2 * * *',
+        scheduleHuman: describeCron('0 2 * * *'),
+        nextRuns: getNextCronRuns('0 2 * * *', 3),
+        command: '/home/deploy/scripts/pg-backup.sh --bucket s3://company-backups/db',
+        rawLine: '0 2 * * * "$HOME/.watchpm2/cron-run.sh" cron-backup ...',
+        user: 'deploy',
+        enabled: true,
+        tracked: true,
+        editable: true,
+        lastRun: backupRuns[0],
+        recentRuns: backupRuns,
+      },
+      {
+        id: 'cron-tmp',
+        name: 'tmp-cleanup',
+        source: 'user-crontab',
+        sourceFile: 'deploy crontab',
+        schedule: '30 4 * * 0',
+        scheduleHuman: describeCron('30 4 * * 0'),
+        nextRuns: getNextCronRuns('30 4 * * 0', 3),
+        command: 'find /tmp/uploads -type f -mtime +3 -delete',
+        rawLine: '30 4 * * 0 find /tmp/uploads -type f -mtime +3 -delete',
+        user: 'deploy',
+        enabled: true,
+        tracked: false,
+        editable: true,
+        lastRun: tmpRuns[0],
+        recentRuns: tmpRuns,
+      },
+      {
+        id: 'cron-certbot',
+        name: 'certbot-renew',
+        source: 'system-cron',
+        sourceFile: '/etc/cron.d/certbot',
+        schedule: '0 */12 * * *',
+        scheduleHuman: describeCron('0 */12 * * *'),
+        nextRuns: getNextCronRuns('0 */12 * * *', 3),
+        command: 'certbot -q renew --nginx',
+        rawLine: '0 */12 * * * root certbot -q renew --nginx',
+        user: 'root',
+        enabled: true,
+        tracked: false,
+        editable: false,
+        recentRuns: [],
+      },
+      {
+        id: 'timer-apt',
+        name: 'apt-daily-upgrade.timer',
+        source: 'systemd-timer',
+        sourceFile: 'systemd',
+        schedule: '0 6 * * *',
+        scheduleHuman: 'Daily at 06:00',
+        nextRuns: getNextCronRuns('0 6 * * *', 3),
+        command: 'systemctl start apt-daily-upgrade.service',
+        rawLine: 'Mon 2026-11-24 06:00:00 UTC  apt-daily-upgrade.timer',
+        enabled: true,
+        tracked: false,
+        editable: false,
+        recentRuns: [],
+      },
+    ];
   }
 
   public onCrashSimulated(cb: () => void): () => void {
@@ -488,39 +774,303 @@ app.listen(process.env.PORT || 8080);
     return target;
   }
 
-  public generateLogLine(processName?: string): {
+  public generateLogLine(
+    processName?: string,
+    sourceType: LogSourceType = 'pm2',
+    target?: string,
+    atTime?: number,
+  ): {
     source: 'stdout' | 'stderr';
     line: string;
+    timestamp: number;
   } {
-    const time = new Date().toISOString();
+    const ts = atTime ?? Date.now();
+    const time = new Date(ts).toISOString();
+
+    if (sourceType === 'file') {
+      const fileTarget = target || '/var/log/nginx/error.log';
+      if (fileTarget.includes('nginx')) {
+        const rand = Math.random();
+        if (rand < 0.28) {
+          return {
+            source: 'stderr',
+            timestamp: ts,
+            line: `${time} [error] 1842#1842: *${Math.floor(9000 + Math.random() * 900)} upstream timed out (110: Connection timed out) upstream="127.0.0.1:8080" client="185.220.101.4" method=POST path=/api/v2/invoices/sync status=504`,
+          };
+        }
+        if (rand < 0.45) {
+          return {
+            source: 'stderr',
+            timestamp: ts,
+            line: `${time} [warn] 1842#1842: upstream response buffered to temporary file client="10.0.1.9" path=/api/v2/exports/csv status=200 latency_ms=${Math.floor(240 + Math.random() * 400)}`,
+          };
+        }
+        return {
+          source: 'stdout',
+          timestamp: ts,
+          line: `${time} [info] nginx access client="172.18.0.4" method=GET path=/api/v2/health status=200 bytes=${Math.floor(180 + Math.random() * 1400)} latency_ms=${Math.floor(2 + Math.random() * 18)}`,
+        };
+      }
+      return {
+        source: 'stdout',
+        timestamp: ts,
+        line: JSON.stringify({
+          timestamp: time,
+          level: Math.random() < 0.15 ? 'warn' : 'info',
+          file: fileTarget,
+          host: 'prod-eu-node-01',
+          msg: 'System file event flushed cleanly',
+        }),
+      };
+    }
+
     const proc = processName
       ? this.processes.find((p) => p.name === processName)
       : this.processes[Math.floor(Math.random() * this.processes.length)];
     const name = proc?.name || 'api-gateway';
 
-    if (proc?.status === 'errored' || Math.random() < 0.18) {
+    const roll = Math.random();
+    if (proc?.status === 'errored' || roll < 0.18) {
       const errs = [
-        `\x1b[31m[${time}] [${name}] ERROR: ETIMEDOUT connecting to redis://10.0.2.15:6379 after 3000ms\x1b[0m`,
-        `\x1b[31m[${time}] [${name}] UnhandledPromiseRejectionWarning: PoolExhaustedError at PgPool.acquire (node_modules/pg-pool/index.js:184:15)\x1b[0m`,
-        `\x1b[33m[${time}] [${name}] WARN: Event loop lag spiked to 184ms (memory RSS=${Math.round((proc?.memory || 150e6) / 1048576)}MB)\x1b[0m`,
+        JSON.stringify({
+          timestamp: time,
+          level: 'error',
+          service: name,
+          reqId: `req_${Math.random().toString(36).slice(2, 8)}`,
+          status: 502,
+          code: 'ETIMEDOUT',
+          upstream: 'redis://10.0.2.15:6379',
+          latencyMs: 3004,
+          msg: 'Redis connection timed out after 3000ms',
+        }),
+        `\x1b[31m[${time}] [${name}] ERROR: UnhandledPromiseRejectionWarning: PoolExhaustedError at PgPool.acquire (pg-pool/index.js:184:15) pool=primary waiting=14\x1b[0m`,
+        `\x1b[33m[${time}] [${name}] WARN: Event loop lag spiked latency_ms=184 memory_mb=${Math.round((proc?.memory || 150e6) / 1048576)} service=${name}\x1b[0m`,
       ];
       return {
         source: 'stderr',
+        timestamp: ts,
         line: errs[Math.floor(Math.random() * errs.length)],
+      };
+    }
+
+    if (roll < 0.45) {
+      return {
+        source: 'stdout',
+        timestamp: ts,
+        line: JSON.stringify({
+          timestamp: time,
+          level: roll < 0.25 ? 'debug' : 'info',
+          service: name,
+          method: roll < 0.35 ? 'POST' : 'GET',
+          path: roll < 0.35 ? '/api/v2/invoices/sync' : '/api/v2/sessions/verify',
+          status: 200,
+          latencyMs: Math.floor(4 + Math.random() * 48),
+          reqId: `req_${Math.random().toString(36).slice(2, 8)}`,
+          msg: 'Request completed',
+        }),
       };
     }
 
     const reqId = Math.random().toString(36).slice(2, 9);
     const routes = [
-      'GET /api/v2/health 200 4ms',
-      'POST /api/v2/invoices/sync 202 31ms',
-      'GET /api/v2/sessions/verify 200 9ms',
-      'JOB processed batch #4821 in 42ms',
+      'method=GET path=/api/v2/health status=200 duration_ms=4',
+      'method=POST path=/api/v2/invoices/sync status=202 duration_ms=31',
+      'method=GET path=/api/v2/sessions/verify status=200 duration_ms=9',
+      'job=billing_batch status=ok processed=128 duration_ms=42',
     ];
     return {
       source: 'stdout',
-      line: `\x1b[32m[${time}]\x1b[0m \x1b[36m[${name}]\x1b[0m req=${reqId} ${routes[Math.floor(Math.random() * routes.length)]}`,
+      timestamp: ts,
+      line: `\x1b[32m[${time}]\x1b[0m \x1b[36m[${name}]\x1b[0m level=info reqId=${reqId} ${routes[Math.floor(Math.random() * routes.length)]}`,
     };
+  }
+
+  public generateHistoricalLogs(
+    sourceType: LogSourceType,
+    target: string,
+    rangeMinutes: number,
+    maxLines: number,
+  ): HistoricalLogLine[] {
+    if (sourceType === 'cron') {
+      const content = this.cronLogs.get(target) || '';
+      const now = Date.now();
+      return content
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line, i) => ({
+          source: line.toLowerCase().includes('error') ? 'stderr' : 'stdout',
+          line,
+          timestamp: now - (50 - i) * 1000,
+        }));
+    }
+
+    const count = Math.min(maxLines, 160);
+    const now = Date.now();
+    const spanMs = Math.max(60_000, rangeMinutes * 60_000);
+    const lines: HistoricalLogLine[] = [];
+    for (let i = 0; i < count; i++) {
+      const ts = now - spanMs + Math.floor((spanMs * i) / count);
+      const item = this.generateLogLine(
+        sourceType === 'pm2' ? target || undefined : undefined,
+        sourceType,
+        target,
+        ts,
+      );
+      lines.push(item);
+    }
+    return lines;
+  }
+
+  // ---- Demo Cron Jobs ----
+  public listCronJobs(): CronJobItem[] {
+    return this.cronJobs.map((j) => ({
+      ...j,
+      nextRuns: j.enabled ? getNextCronRuns(j.schedule, 3) : [],
+      recentRuns: [...j.recentRuns],
+      lastRun: j.recentRuns[0],
+    }));
+  }
+
+  public createCronJob(input: CronJobInput): CronJobItem {
+    const err = validateCronExpression(input.schedule);
+    if (err) throw new Error(err);
+    const id = `cron-${Date.now().toString(36)}`;
+    const job: CronJobItem = {
+      id,
+      name: input.name.trim(),
+      source: 'user-crontab',
+      sourceFile: 'deploy crontab',
+      schedule: input.schedule.trim(),
+      scheduleHuman: describeCron(input.schedule),
+      nextRuns:
+        input.enabled !== false ? getNextCronRuns(input.schedule, 3) : [],
+      command: input.command.trim(),
+      rawLine: `${input.schedule.trim()} ${input.command.trim()}`,
+      user: 'deploy',
+      enabled: input.enabled !== false,
+      tracked: input.tracked !== false,
+      editable: true,
+      recentRuns: [],
+    };
+    this.cronJobs.unshift(job);
+    return job;
+  }
+
+  public updateCronJob(jobId: string, input: CronJobInput): void {
+    const job = this.cronJobs.find((j) => j.id === jobId);
+    if (!job || !job.editable) throw new Error('Editable cron job not found.');
+    job.name = input.name.trim();
+    job.schedule = input.schedule.trim();
+    job.scheduleHuman = describeCron(job.schedule);
+    job.command = input.command.trim();
+    if (input.enabled !== undefined) job.enabled = input.enabled;
+    if (input.tracked !== undefined) job.tracked = input.tracked;
+    job.nextRuns = job.enabled ? getNextCronRuns(job.schedule, 3) : [];
+  }
+
+  public toggleCronEnabled(jobId: string, enabled: boolean): void {
+    const job = this.cronJobs.find((j) => j.id === jobId);
+    if (!job || !job.editable) throw new Error('Editable cron job not found.');
+    job.enabled = enabled;
+    job.nextRuns = enabled ? getNextCronRuns(job.schedule, 3) : [];
+  }
+
+  public toggleCronTracking(jobId: string, tracked: boolean): void {
+    const job = this.cronJobs.find((j) => j.id === jobId);
+    if (!job || !job.editable) throw new Error('Editable cron job not found.');
+    job.tracked = tracked;
+  }
+
+  public deleteCronJob(jobId: string): void {
+    this.cronJobs = this.cronJobs.filter((j) => j.id !== jobId);
+  }
+
+  public readCronRunLog(logFile: string): { content: string; path: string } {
+    const content = this.cronLogs.get(logFile);
+    if (content === undefined) {
+      throw new Error(`Run log not found: ${logFile}`);
+    }
+    return { content, path: logFile };
+  }
+
+  public runCronNow(params: {
+    runId: string;
+    jobId: string;
+    onOutput: (stream: 'stdout' | 'stderr' | 'system', chunk: string) => void;
+    onDone: (record: CronRunRecord) => void;
+  }): void {
+    const job = this.cronJobs.find((j) => j.id === params.jobId);
+    if (!job) {
+      params.onOutput('stderr', 'Cron job not found.\n');
+      params.onDone({
+        runId: params.runId,
+        jobId: params.jobId,
+        jobName: params.jobId,
+        status: 'failed',
+        exitCode: 1,
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        durationMs: 0,
+        trigger: 'manual',
+      });
+      return;
+    }
+
+    const startedAt = Date.now();
+    const logFile = `/home/deploy/.watchpm2/cron-logs/${job.id}/${params.runId}.log`;
+    job.activeRun = {
+      runId: params.runId,
+      pid: 24100 + Math.floor(Math.random() * 500),
+      startedAt,
+      logFile,
+    };
+
+    params.onOutput(
+      'system',
+      `[${new Date(startedAt).toISOString()}] Executing "${job.name}"...\n$ ${job.command}\n`,
+    );
+
+    const willFail = job.command.includes('fail') && !job.command.includes('echo');
+    const stepLines = [
+      `Connecting to runtime environment (user=${job.user || 'deploy'})...`,
+      `Processing scheduled task "${job.name}"...`,
+      willFail
+        ? `ERROR: Task aborted unexpectedly (exit code 1)`
+        : `Task "${job.name}" completed cleanly (processed 100%).`,
+    ];
+
+    let fullText = `$ ${job.command}\n`;
+    stepLines.forEach((line, idx) => {
+      setTimeout(() => {
+        const isErr = willFail && idx === stepLines.length - 1;
+        fullText += line + '\n';
+        params.onOutput(isErr ? 'stderr' : 'stdout', line + '\n');
+
+        if (idx === stepLines.length - 1) {
+          const finishedAt = Date.now();
+          const exitCode = willFail ? 1 : 0;
+          this.cronLogs.set(logFile, fullText);
+          const record: CronRunRecord = {
+            runId: params.runId,
+            jobId: job.id,
+            jobName: job.name,
+            status: exitCode === 0 ? 'success' : 'failed',
+            exitCode,
+            startedAt,
+            finishedAt,
+            durationMs: Math.max(100, finishedAt - startedAt),
+            logFile,
+            trigger: 'manual',
+            outputPreview: fullText.slice(-400),
+          };
+          job.activeRun = undefined;
+          job.recentRuns.unshift(record);
+          if (job.recentRuns.length > 20) job.recentRuns.pop();
+          job.lastRun = record;
+          params.onDone(record);
+        }
+      }, 350 * (idx + 1));
+    });
   }
 
   // ---- Mock SFTP ----

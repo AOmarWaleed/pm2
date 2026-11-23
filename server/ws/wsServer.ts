@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { WsClientMessage, WsServerMessage } from '@shared/types';
 import { isAllowedLocalOrigin } from '../middleware/auth';
 import { alertService } from '../services/alertService';
+import { cronService } from '../services/cronService';
 import { logStreamService } from '../services/logStreamService';
 import { metricsService } from '../services/metricsService';
 import { scriptService } from '../services/scriptService';
@@ -151,16 +152,18 @@ export function attachWsServer(httpServer: HttpServer): WebSocketServer {
         void logStreamService.startStream({
           streamId: msg.streamId,
           server: srv,
+          sourceType: msg.sourceType,
+          target: msg.target,
           processName: msg.processName,
           lines: msg.lines,
-          onChunk: (source, line) => {
+          onChunk: (source, line, timestamp) => {
             send(ws, {
               type: 'logs:chunk',
               streamId: msg.streamId,
               serverId: srv.id,
               source,
               line,
-              timestamp: Date.now(),
+              timestamp: timestamp ?? Date.now(),
             });
           },
           onError: (message) => {
@@ -249,6 +252,54 @@ export function attachWsServer(httpServer: HttpServer): WebSocketServer {
         });
       } else if (msg.type === 'script:cancel') {
         scriptService.cancelRun(msg.runId);
+      } else if (msg.type === 'cron:run') {
+        const srv = vaultStore.getServer(msg.serverId);
+        if (!srv) {
+          send(ws, {
+            type: 'cron:output',
+            runId: msg.runId,
+            stream: 'stderr',
+            chunk: 'Server not found.\n',
+          });
+          send(ws, {
+            type: 'cron:done',
+            runId: msg.runId,
+            record: {
+              runId: msg.runId,
+              jobId: msg.jobId,
+              jobName: msg.jobId,
+              status: 'failed',
+              exitCode: 1,
+              startedAt: Date.now(),
+              finishedAt: Date.now(),
+              durationMs: 0,
+              trigger: 'manual',
+            },
+          });
+          return;
+        }
+        void cronService.runJobNow({
+          runId: msg.runId,
+          server: srv,
+          jobId: msg.jobId,
+          onOutput: (stream, chunk) => {
+            send(ws, {
+              type: 'cron:output',
+              runId: msg.runId,
+              stream,
+              chunk,
+            });
+          },
+          onDone: (record) => {
+            send(ws, {
+              type: 'cron:done',
+              runId: msg.runId,
+              record,
+            });
+          },
+        });
+      } else if (msg.type === 'cron:cancel') {
+        cronService.cancelRun(msg.runId);
       }
     });
 

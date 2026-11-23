@@ -6,6 +6,8 @@ import {
   AiPublicConfig,
   AlertEvent,
   AlertRule,
+  LogBookmark,
+  LogSourceType,
   ScriptItem,
   ServerConfig,
   ServerInput,
@@ -108,6 +110,7 @@ function getDefaultVaultData(): VaultData {
       apiKey: '',
       baseUrl: '',
     },
+    logBookmarks: {},
     settings: {
       autoLockMinutes: 30,
     },
@@ -210,6 +213,7 @@ export class VaultStore {
       alertEvents: parsed.alertEvents ?? [],
       webhooks: parsed.webhooks ?? [],
       aiConfig: parsed.aiConfig ?? defaults.aiConfig,
+      logBookmarks: parsed.logBookmarks ?? {},
       settings: {
         autoLockMinutes: parsed.settings?.autoLockMinutes ?? 30,
       },
@@ -649,6 +653,46 @@ export class VaultStore {
     };
     this.persist();
     return this.getPublicAiConfig();
+  }
+
+  // ---- Log Bookmarks ----
+  public listLogBookmarks(serverId: string): LogBookmark[] {
+    const data = this.requireUnlocked();
+    return [...(data.logBookmarks[serverId] || [])];
+  }
+
+  public saveLogBookmark(
+    serverId: string,
+    input: { label: string; sourceType: LogSourceType; target: string },
+  ): LogBookmark {
+    const data = this.requireUnlocked();
+    const list = data.logBookmarks[serverId] || [];
+    const existing = list.find(
+      (b) => b.sourceType === input.sourceType && b.target === input.target,
+    );
+    if (existing) {
+      existing.label = input.label.trim() || existing.label;
+      data.logBookmarks[serverId] = list;
+      this.persist();
+      return existing;
+    }
+    const created: LogBookmark = {
+      id: `lb-${crypto.randomUUID().slice(0, 8)}`,
+      label: input.label.trim() || input.target,
+      sourceType: input.sourceType,
+      target: input.target.trim(),
+      createdAt: Date.now(),
+    };
+    data.logBookmarks[serverId] = [created, ...list];
+    this.persist();
+    return created;
+  }
+
+  public deleteLogBookmark(serverId: string, bookmarkId: string): void {
+    const data = this.requireUnlocked();
+    const list = data.logBookmarks[serverId] || [];
+    data.logBookmarks[serverId] = list.filter((b) => b.id !== bookmarkId);
+    this.persist();
   }
 }
 

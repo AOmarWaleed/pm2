@@ -42,6 +42,7 @@ interface RawPm2Item {
     node_version?: string;
     pm_out_log_path?: string;
     pm_err_log_path?: string;
+    cron_restart?: string;
     env?: Record<string, unknown>;
     [key: string]: unknown;
   };
@@ -251,6 +252,10 @@ export class Pm2Service {
         nodeVersion: String(env.node_version || ''),
         outLogPath: String(env.pm_out_log_path || ''),
         errLogPath: String(env.pm_err_log_path || ''),
+        cronRestart:
+          typeof env.cron_restart === 'string' && env.cron_restart.trim()
+            ? env.cron_restart.trim()
+            : undefined,
         env: normalizeEnv(env),
       };
     });
