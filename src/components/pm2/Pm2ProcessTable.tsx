@@ -309,8 +309,8 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
         <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800/90 dark:bg-zinc-900/80">
           <table className="w-full text-start text-xs">
             <thead className="border-b border-zinc-200 bg-zinc-50 text-[11px] uppercase tracking-wider text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/60">
-              <tr>
-                <th className="w-8 px-3 py-3">
+              <tr className="whitespace-nowrap">
+                <th className="w-8 px-2.5 py-2.5">
                   <button
                     onClick={toggleAll}
                     className={`flex h-4 w-4 items-center justify-center rounded border ${
@@ -326,16 +326,16 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                       )}
                   </button>
                 </th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.id}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.name}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.status}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.mode}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.pid}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.cpu}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.memory}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.uptime}</th>
-                <th className="px-3 py-3 text-start">{t.pm2.cols.restarts}</th>
-                <th className="px-3 py-3 text-end">{t.pm2.cols.actions}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.id}</th>
+                <th className="px-2.5 py-2.5 text-start">{t.pm2.cols.name}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.status}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.mode}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.pid}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.cpu}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.memory}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.uptime}</th>
+                <th className="px-2 py-2.5 text-start">{t.pm2.cols.restarts}</th>
+                <th className="px-2.5 py-2.5 text-end">{t.pm2.cols.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/70">
@@ -346,7 +346,7 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                     key={`${p.pm_id}-${p.name}`}
                     className="transition hover:bg-zinc-50/90 dark:hover:bg-zinc-950/50"
                   >
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-2.5">
                       <button
                         onClick={() =>
                           setSelectedNames((prev) => ({
@@ -363,36 +363,36 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                         {isSelected && <Check className="h-3 w-3" />}
                       </button>
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono text-zinc-500">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono text-zinc-500">
                       {p.pm_id}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2.5 py-2.5">
                       <button
                         onClick={() => setInspectTarget(p.name)}
                         dir="ltr"
-                        className="text-start font-mono font-semibold text-zinc-900 hover:text-emerald-500 dark:text-zinc-100"
+                        className="whitespace-nowrap text-start font-mono font-semibold text-zinc-900 hover:text-emerald-500 dark:text-zinc-100"
                       >
                         {p.name}
                       </button>
                       <div
                         dir="ltr"
-                        className="max-w-[200px] truncate font-mono text-[10px] text-zinc-500"
+                        className="max-w-[155px] truncate font-mono text-[10px] text-zinc-500"
                       >
                         {p.script}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="whitespace-nowrap px-2 py-2.5">
                       <ProcessStatusBadge status={p.status} />
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono text-[11px]">
-                      <span className="rounded bg-zinc-500/10 px-1.5 py-0.5 text-zinc-600 dark:text-zinc-300">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono text-[11px]">
+                      <span className="inline-block whitespace-nowrap rounded bg-zinc-500/10 px-1.5 py-0.5 text-zinc-600 dark:text-zinc-300">
                         {p.execMode.replace('_mode', '')} ({p.instances})
                       </span>
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono text-zinc-500">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono text-zinc-500">
                       {p.pid || '—'}
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono">
                       <span
                         className={
                           p.cpu > 80 ? 'font-semibold text-rose-500' : ''
@@ -401,13 +401,13 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                         {p.cpu.toFixed(1)}%
                       </span>
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono">
                       {formatBytes(p.memory)}
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono text-zinc-500">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono text-zinc-500">
                       {formatUptimeSince(p.uptime)}
                     </td>
-                    <td dir="ltr" className="px-3 py-2.5 font-mono">
+                    <td dir="ltr" className="whitespace-nowrap px-2 py-2.5 font-mono">
                       <span
                         className={
                           p.restarts > 5 ? 'text-amber-500' : 'text-zinc-500'
@@ -416,28 +416,28 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                         {p.restarts}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center justify-end gap-1">
+                    <td className="whitespace-nowrap px-2.5 py-2.5">
+                      <div className="flex items-center justify-end gap-0.5">
                         {p.status === 'online' ? (
                           <>
                             <button
                               onClick={() => void runAction(p.name, 'reload')}
                               title={t.pm2.actions.reload}
-                              className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-500/10"
+                              className="rounded-lg p-1 text-emerald-500 hover:bg-emerald-500/10"
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => void runAction(p.name, 'restart')}
                               title={t.pm2.actions.restart}
-                              className="rounded-lg p-1.5 text-sky-500 hover:bg-sky-500/10"
+                              className="rounded-lg p-1 text-sky-500 hover:bg-sky-500/10"
                             >
                               <RotateCcw className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => void runAction(p.name, 'stop')}
                               title={t.pm2.actions.stop}
-                              className="rounded-lg p-1.5 text-amber-500 hover:bg-amber-500/10"
+                              className="rounded-lg p-1 text-amber-500 hover:bg-amber-500/10"
                             >
                               <Square className="h-3.5 w-3.5" />
                             </button>
@@ -446,7 +446,7 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                           <button
                             onClick={() => void runAction(p.name, 'start')}
                             title={t.pm2.actions.start}
-                            className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-500/10"
+                            className="rounded-lg p-1 text-emerald-500 hover:bg-emerald-500/10"
                           >
                             <Play className="h-3.5 w-3.5" />
                           </button>
@@ -454,35 +454,35 @@ export const Pm2ProcessTable: React.FC<{ server: ServerPublicConfig }> = ({
                         <button
                           onClick={() => setScaleTarget(p)}
                           title={t.pm2.actions.scale}
-                          className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
                           <Layers className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => jumpToLogs(server.id, p.name)}
                           title={t.pm2.actions.logs}
-                          className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
                           <ScrollText className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => setInspectTarget(p.name)}
                           title={t.pm2.actions.inspect}
-                          className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => void runAction(p.name, 'flush')}
                           title={t.pm2.actions.flush}
-                          className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         >
                           <Eraser className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => void runAction(p.name, 'delete')}
                           title={t.pm2.actions.delete}
-                          className="rounded-lg p-1.5 text-zinc-500 hover:bg-rose-500/10 hover:text-rose-500"
+                          className="rounded-lg p-1 text-zinc-500 hover:bg-rose-500/10 hover:text-rose-500"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

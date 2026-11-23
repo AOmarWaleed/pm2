@@ -44,64 +44,66 @@ export const TopTabBar: React.FC = () => {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-3 dark:border-zinc-800/80 dark:bg-zinc-950">
       {/* Brand + Tab Strip */}
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-1">
-        <div className="me-2 flex shrink-0 items-center gap-2 rounded-lg bg-emerald-500/10 px-2.5 py-1 ring-1 ring-emerald-500/20">
-          <Activity className="h-4 w-4 text-emerald-500" />
-          <span
-            dir="ltr"
-            className="text-xs font-bold tracking-tight text-zinc-900 dark:text-zinc-100"
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto py-1">
+          <div className="me-1 flex shrink-0 items-center gap-2 rounded-lg bg-emerald-500/10 px-2.5 py-1 ring-1 ring-emerald-500/20">
+            <Activity className="h-4 w-4 text-emerald-500" />
+            <span
+              dir="ltr"
+              className="whitespace-nowrap text-xs font-bold tracking-tight text-zinc-900 dark:text-zinc-100"
+            >
+              WatchPM2
+            </span>
+          </div>
+
+          <button
+            onClick={() => setActiveTab('fleet')}
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition',
+              activeTabId === 'fleet'
+                ? 'bg-zinc-900 text-white shadow-sm dark:bg-zinc-800 dark:text-zinc-100'
+                : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900',
+            )}
           >
-            WatchPM2
-          </span>
+            <LayoutGrid className="h-3.5 w-3.5" />
+            <span>{t.tabs.fleet}</span>
+            <span className="rounded bg-zinc-500/20 px-1.5 py-0.2 text-[10px]">
+              {servers.length}
+            </span>
+          </button>
+
+          {openServers.map((srv) => {
+            const isActive = activeTabId === srv.id;
+            return (
+              <div
+                key={srv.id}
+                onClick={() => setActiveTab(srv.id)}
+                className={cn(
+                  'group flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-1 text-xs font-medium transition',
+                  isActive
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100'
+                    : 'border-transparent text-zinc-600 hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900/70',
+                )}
+              >
+                <ConnectionDot status={srv.connectionStatus} />
+                <span className="max-w-[150px] truncate">{srv.name}</span>
+                <EnvBadge env={srv.environment} compact />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeServerTab(srv.id);
+                  }}
+                  title="Close tab"
+                  className="rounded p-0.5 text-zinc-400 opacity-75 hover:bg-zinc-200 hover:text-zinc-900 group-hover:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
 
-        <button
-          onClick={() => setActiveTab('fleet')}
-          className={cn(
-            'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition',
-            activeTabId === 'fleet'
-              ? 'bg-zinc-900 text-white shadow-sm dark:bg-zinc-800 dark:text-zinc-100'
-              : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900',
-          )}
-        >
-          <LayoutGrid className="h-3.5 w-3.5" />
-          <span>{t.tabs.fleet}</span>
-          <span className="rounded bg-zinc-500/20 px-1.5 py-0.2 text-[10px]">
-            {servers.length}
-          </span>
-        </button>
-
-        {openServers.map((srv) => {
-          const isActive = activeTabId === srv.id;
-          return (
-            <div
-              key={srv.id}
-              onClick={() => setActiveTab(srv.id)}
-              className={cn(
-                'group flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1 text-xs font-medium transition',
-                isActive
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100'
-                  : 'border-transparent text-zinc-600 hover:border-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900/70',
-              )}
-            >
-              <ConnectionDot status={srv.connectionStatus} />
-              <span className="max-w-[140px] truncate">{srv.name}</span>
-              <EnvBadge env={srv.environment} compact />
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeServerTab(srv.id);
-                }}
-                title="Close tab"
-                className="rounded p-0.5 text-zinc-400 opacity-70 hover:bg-zinc-200 hover:text-zinc-900 group-hover:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          );
-        })}
-
-        {/* Quick Open Server Dropdown */}
+        {/* Quick Open Server Dropdown (outside overflow-x-auto so menu is never clipped) */}
         {servers.length > 0 && (
           <div className="relative shrink-0">
             <button

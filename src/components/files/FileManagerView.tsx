@@ -341,7 +341,6 @@ export const FileManagerView: React.FC<{ server: ServerPublicConfig }> = ({
                         ? void loadDirectory(entry.path)
                         : void openFile(entry.path)
                     }
-                    dir="ltr"
                     className="flex min-w-0 flex-1 items-center gap-2 text-start"
                   >
                     {entry.isDirectory ? (
@@ -349,7 +348,10 @@ export const FileManagerView: React.FC<{ server: ServerPublicConfig }> = ({
                     ) : (
                       <FileText className="h-4 w-4 shrink-0 text-sky-400" />
                     )}
-                    <span className="truncate font-mono text-zinc-900 dark:text-zinc-100">
+                    <span
+                      dir="ltr"
+                      className="truncate font-mono text-zinc-900 dark:text-zinc-100"
+                    >
                       {entry.name}
                     </span>
                   </button>
@@ -362,29 +364,31 @@ export const FileManagerView: React.FC<{ server: ServerPublicConfig }> = ({
                         {formatBytes(entry.size)}
                       </span>
                     )}
-                    {!entry.isDirectory && (
-                      <a
-                        href={api.getDownloadUrl(server.id, entry.path)}
-                        title={t.files.download}
-                        className="rounded p-1 text-zinc-400 opacity-0 hover:bg-zinc-200 hover:text-zinc-700 group-hover:opacity-100 dark:hover:bg-zinc-800"
+                    <div className="hidden items-center gap-0.5 group-hover:flex">
+                      {!entry.isDirectory && (
+                        <a
+                          href={api.getDownloadUrl(server.id, entry.path)}
+                          title={t.files.download}
+                          className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800"
+                        >
+                          <Download className="h-3 w-3" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => void handleRename(entry)}
+                        title={t.files.rename}
+                        className="rounded p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800"
                       >
-                        <Download className="h-3 w-3" />
-                      </a>
-                    )}
-                    <button
-                      onClick={() => void handleRename(entry)}
-                      title={t.files.rename}
-                      className="rounded p-1 text-zinc-400 opacity-0 hover:bg-zinc-200 hover:text-zinc-700 group-hover:opacity-100 dark:hover:bg-zinc-800"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => void handleDelete(entry)}
-                      title={t.files.delete}
-                      className="rounded p-1 text-zinc-400 opacity-0 hover:bg-rose-500/15 hover:text-rose-500 group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => void handleDelete(entry)}
+                        title={t.files.delete}
+                        className="rounded p-1 text-zinc-400 hover:bg-rose-500/15 hover:text-rose-500"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

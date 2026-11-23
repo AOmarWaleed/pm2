@@ -712,10 +712,12 @@ app.listen(process.env.PORT || 8080);
     if (trimmed.startsWith('pm2 ')) {
       if (trimmed.includes('status') || trimmed.includes('list') || trimmed.includes('ls')) {
         const rows = this.processes
-          .map(
-            (p) =>
-              `│ ${String(p.pm_id).padEnd(3)} │ ${p.name.padEnd(16)} │ ${p.execMode.slice(0, 7).padEnd(7)} │ ${p.status.padEnd(8)} │ ↺ ${String(p.restarts).padEnd(3)} │ ${p.cpu.toFixed(1)}% │ ${Math.round(p.memory / 1048576)}MB │`,
-          )
+          .map((p) => {
+            const mode = p.execMode.replace('_mode', '').padEnd(7);
+            const cpuStr = `${p.cpu.toFixed(1)}%`.padStart(5);
+            const memStr = `${Math.round(p.memory / 1048576)}MB`.padStart(6);
+            return `│ ${String(p.pm_id).padEnd(3)} │ ${p.name.padEnd(16)} │ ${mode} │ ${p.status.padEnd(8)} │ ↺ ${String(p.restarts).padEnd(3)} │ ${cpuStr} │ ${memStr} │`;
+          })
           .join('\n');
         return {
           stdout: `┌─────┬──────────────────┬─────────┬──────────┬───────┬───────┬────────┐\n${rows}\n└─────┴──────────────────┴─────────┴──────────┴───────┴───────┴────────┘\n`,
